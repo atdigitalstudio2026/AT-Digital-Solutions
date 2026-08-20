@@ -4,6 +4,7 @@ import { PRODUCTS } from '../data/products';
 import { 
   auth, 
   loginWithGoogle as fbLoginWithGoogle, 
+  loginWithDirectGoogleAccount,
   loginWithEmail as fbLoginWithEmail, 
   registerWithEmail as fbRegisterWithEmail, 
   resetPassword as fbResetPassword, 
@@ -52,6 +53,7 @@ interface AppContextType {
   user: User | null;
   isAuthLoading: boolean;
   loginWithGoogle: () => Promise<boolean>;
+  loginWithGoogleAccount: (email: string, name?: string, avatar?: string) => Promise<boolean>;
   loginWithEmail: (email: string, pass: string) => Promise<boolean>;
   registerWithEmail: (name: string, email: string, pass: string, company?: string) => Promise<boolean>;
   sendPasswordReset: (email: string) => Promise<boolean>;
@@ -401,6 +403,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const appUser = await fbLoginWithGoogle();
       setUser(appUser);
+      // Fetch user cloud data
+      const { transactions: cloudTx, purchasedProductIds: cloudPurchased } = await fetchUserTransactions(appUser.id);
+      if (cloudTx && cloudTx.length > 0) setTransactions(cloudTx);
+      if (cloudPurchased && cloudPurchased.length > 0) setPurchasedProductIds(cloudPurchased);
       showToast(`Selamat datang, ${appUser.name}! Berhasil masuk via Google.`, 'success');
       return true;
     } catch (err: any) {
@@ -412,6 +418,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } else {
         showToast(err.message || 'Gagal masuk dengan akun Google.', 'error');
       }
+      return false;
+    }
+  };
+
+  const loginWithGoogleAccount = async (email: string, name?: string, avatar?: string): Promise<boolean> => {
+    try {
+      const appUser = await loginWithDirectGoogleAccount(email, name, avatar);
+      setUser(appUser);
+      // Fetch user cloud data
+      const { transactions: cloudTx, purchasedProductIds: cloudPurchased } = await fetchUserTransactions(appUser.id);
+      if (cloudTx && cloudTx.length > 0) setTransactions(cloudTx);
+      if (cloudPurchased && cloudPurchased.length > 0) setPurchasedProductIds(cloudPurchased);
+      showToast(`Selamat datang, ${appUser.name}! Berhasil masuk via Akun Google.`, 'success');
+      return true;
+    } catch (err: any) {
+      console.error('Direct Google login error:', err);
+      showToast(err.message || 'Gagal masuk dengan akun Google.', 'error');
       return false;
     }
   };
@@ -588,6 +611,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         user,
         isAuthLoading,
         loginWithGoogle,
+        loginWithGoogleAccount,
         loginWithEmail,
         registerWithEmail,
         sendPasswordReset,

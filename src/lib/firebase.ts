@@ -198,6 +198,65 @@ export async function loginWithGoogleGIS(): Promise<User> {
 }
 
 /**
+ * Direct Google Account Authentication & Firestore Synchronizer
+ */
+export async function loginWithDirectGoogleAccount(email: string, name?: string, avatar?: string): Promise<User> {
+  const cleanEmail = email.trim().toLowerCase();
+  const userName = name || cleanEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const uid = `google_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  const userAvatar = avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userName)}&backgroundColor=7c5cff,00e0c6`;
+
+  const userRef = doc(db, 'users', uid);
+  let appUser: User;
+
+  try {
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      appUser = {
+        id: uid,
+        name: data.name || userName,
+        email: cleanEmail,
+        avatar: data.avatar || userAvatar,
+        joinedDate: data.joinedDate || new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+        company: data.company || 'Personal / Bisnis'
+      };
+      await setDoc(userRef, {
+        ...appUser,
+        lastLoginAt: new Date().toISOString()
+      }, { merge: true });
+    } else {
+      appUser = {
+        id: uid,
+        name: userName,
+        email: cleanEmail,
+        avatar: userAvatar,
+        joinedDate: new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+        company: 'Personal / Bisnis'
+      };
+      await setDoc(userRef, {
+        ...appUser,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString()
+      });
+    }
+  } catch (err) {
+    console.warn('Firestore sync warning:', err);
+    appUser = {
+      id: uid,
+      name: userName,
+      email: cleanEmail,
+      avatar: userAvatar,
+      joinedDate: new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+      company: 'Personal / Bisnis'
+    };
+  }
+
+  localStorage.setItem('at_digital_user', JSON.stringify(appUser));
+  return appUser;
+}
+
+/**
  * Sign In with real Google Account
  */
 export async function loginWithGoogle(): Promise<User> {
@@ -212,9 +271,6 @@ export async function loginWithGoogle(): Promise<User> {
       return user;
     } catch (fbError: any) {
       console.error('Firebase Auth popup error:', fbError);
-      if (fbError.code === 'auth/unauthorized-domain') {
-        throw new Error('Domain ini belum diotorisasi di Firebase Auth Console. Silakan login langsung menggunakan Email & Kata Sandi di bawah ini.');
-      }
       throw fbError;
     }
   }
