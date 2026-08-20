@@ -131,38 +131,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [discountCode, setDiscountCode] = useState<string>('');
   const [appliedDiscountPercent, setAppliedDiscountPercent] = useState<number>(0);
 
-  // User State
+  // User State - starts as null (guest / not logged in) by default
   const [user, setUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('at_digital_user');
-      return saved ? JSON.parse(saved) : {
-        id: 'usr-default',
-        name: 'Daffa Pratama',
-        email: 'daffa.pratama@atdigitalsolution.com',
-        joinedDate: 'Agustus 2026',
-        company: 'AT Digital Solution Client'
-      };
+      return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
   });
 
-  // Purchased IDs & Transactions
+  // Purchased IDs & Transactions (Empty by default for guest, loaded from storage if existing)
   const [purchasedProductIds, setPurchasedProductIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('at_digital_purchased');
-      return saved ? JSON.parse(saved) : INITIAL_PURCHASED_IDS;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return INITIAL_PURCHASED_IDS;
+      return [];
     }
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     try {
       const saved = localStorage.getItem('at_digital_transactions');
-      return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return INITIAL_TRANSACTIONS;
+      return [];
     }
   });
 

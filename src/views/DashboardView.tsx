@@ -36,8 +36,36 @@ export const DashboardView: React.FC = () => {
   const [activationInput, setActivationInput] = useState('');
 
   if (!user) {
-    navigateTo('/auth');
-    return null;
+    return (
+      <div className="max-w-xl mx-auto px-4 py-20 text-center space-y-6">
+        <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-[#7c5cff] via-[#ff4fd8] to-[#00e0c6] flex items-center justify-center text-[#0a0a12] mx-auto shadow-xl">
+          <UserIcon className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="font-display font-bold text-2xl sm:text-3xl text-white">
+            Akses Dashboard Klien
+          </h2>
+          <p className="text-sm text-[#9291ab] leading-relaxed max-w-md mx-auto">
+            Silakan masuk atau daftarkan akun baru untuk melihat lisensi software, riwayat transaksi, dan file unduhan aplikasi Anda.
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          <button
+            onClick={() => navigateTo('/auth')}
+            className="w-full sm:w-auto gradient-btn px-6 py-3 rounded-2xl text-xs font-bold font-display tracking-tight flex items-center justify-center gap-2"
+          >
+            <UserIcon className="w-4 h-4" />
+            Masuk / Buat Akun Baru
+          </button>
+          <button
+            onClick={() => navigateTo('/catalog')}
+            className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-[#9291ab] hover:text-white transition-colors"
+          >
+            Jelajahi Katalog Software
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const ownedProducts = purchasedProductIds

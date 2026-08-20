@@ -27,9 +27,9 @@ export const CheckoutView: React.FC = () => {
     showToast
   } = useApp();
 
-  const [buyerName, setBuyerName] = useState(user?.name || 'Daffa Pratama');
-  const [buyerEmail, setBuyerEmail] = useState(user?.email || 'daffa.pratama@atdigitalsolution.com');
-  const [buyerPhone, setBuyerPhone] = useState('081289218492');
+  const [buyerName, setBuyerName] = useState(user?.name || '');
+  const [buyerEmail, setBuyerEmail] = useState(user?.email || '');
+  const [buyerPhone, setBuyerPhone] = useState('');
   const [selectedMethodId, setSelectedMethodId] = useState('qris');
   const [isProcessing, setIsProcessing] = useState(false);
 
