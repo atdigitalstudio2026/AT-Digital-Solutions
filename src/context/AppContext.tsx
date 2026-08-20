@@ -67,47 +67,6 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const INITIAL_PURCHASED_IDS = ['orbit-tasks', 'cipher-vpn'];
-
-const INITIAL_TRANSACTIONS: Transaction[] = [
-  {
-    id: 'tx-init-1',
-    orderNumber: 'AT-9021-ORD',
-    date: '14 Agu 2026',
-    total: 350000,
-    status: 'Lunas',
-    paymentMethod: 'QRIS Realtime',
-    items: [
-      {
-        productId: 'orbit-tasks',
-        productName: 'Orbit Task & Sprint Manager',
-        price: 350000,
-        qty: 1,
-        licenseKey: 'AT-ORB8-7492-PRO',
-        version: 'v1.8.4'
-      }
-    ]
-  },
-  {
-    id: 'tx-init-2',
-    orderNumber: 'AT-8843-ORD',
-    date: '02 Agu 2026',
-    total: 275000,
-    status: 'Lunas',
-    paymentMethod: 'BCA Virtual Account',
-    items: [
-      {
-        productId: 'cipher-vpn',
-        productName: 'Cipher VPN Enterprise Pro',
-        price: 275000,
-        qty: 1,
-        licenseKey: 'AT-CIPH-9921-SEC',
-        version: 'v4.3.0'
-      }
-    ]
-  }
-];
-
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Routing parsed from window.location.hash
   const [currentRoute, setCurrentRoute] = useState<AppRoute>({ name: 'home' });
@@ -131,21 +90,46 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [discountCode, setDiscountCode] = useState<string>('');
   const [appliedDiscountPercent, setAppliedDiscountPercent] = useState<number>(0);
 
-  // User State - starts as null (guest / not logged in) by default
+  // User State - starts strictly as null (Guest / Logged Out) on fresh load
   const [user, setUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('at_digital_user');
-      return saved ? JSON.parse(saved) : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Clear any old mock demo users from previous test sessions
+        if (
+          !parsed || 
+          parsed.id === 'usr-default' || 
+          parsed.email?.toLowerCase().includes('daffa') || 
+          parsed.name?.toLowerCase().includes('daffa')
+        ) {
+          localStorage.removeItem('at_digital_user');
+          return null;
+        }
+        return parsed;
+      }
+      return null;
     } catch {
       return null;
     }
   });
 
-  // Purchased IDs & Transactions (Empty by default for guest, loaded from storage if existing)
+  // Purchased IDs & Transactions (Cleaned of initial mocks)
   const [purchasedProductIds, setPurchasedProductIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('at_digital_purchased');
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // If it was just the old mock default data
+          if (parsed.length === 2 && parsed.includes('orbit-tasks') && parsed.includes('cipher-vpn') && !localStorage.getItem('at_digital_user')) {
+            localStorage.removeItem('at_digital_purchased');
+            return [];
+          }
+          return parsed;
+        }
+      }
+      return [];
     } catch {
       return [];
     }
@@ -154,7 +138,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     try {
       const saved = localStorage.getItem('at_digital_transactions');
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Clean legacy mock transactions
+          const isMockOnly = parsed.every((t: any) => t.id === 'tx-init-1' || t.id === 'tx-init-2');
+          if (isMockOnly) {
+            localStorage.removeItem('at_digital_transactions');
+            return [];
+          }
+          return parsed;
+        }
+      }
+      return [];
     } catch {
       return [];
     }
