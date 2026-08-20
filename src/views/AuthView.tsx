@@ -55,6 +55,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
   const [forgotSuccess, setForgotSuccess] = useState(false);
 
   const handleDirectGoogleLogin = async (googleEmail: string, googleName?: string) => {
+    if (!googleEmail || !googleEmail.includes('@')) {
+      setErrorMessage('Masukkan format email Google yang valid.');
+      showToast('Masukkan format email Google yang valid.', 'warning');
+      return;
+    }
     setIsGoogleLoading(true);
     setErrorMessage(null);
     try {
@@ -70,9 +75,21 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
     }
   };
 
-  const handleOpenGoogleAuth = () => {
+  const handleGoogleAuthClick = async () => {
     setErrorMessage(null);
-    setShowGoogleModal(true);
+    setIsGoogleLoading(true);
+    try {
+      const ok = await loginWithGoogle();
+      if (ok) {
+        navigateTo('/dashboard');
+        return;
+      }
+    } catch (err: any) {
+      console.warn('Google popup restriction, opening direct sign-in dialog:', err);
+      setShowGoogleModal(true);
+    } finally {
+      setIsGoogleLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -191,7 +208,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
         {/* Standard Google Login Button */}
         <button
           type="button"
-          onClick={handleOpenGoogleAuth}
+          onClick={handleGoogleAuthClick}
           disabled={isGoogleLoading || isLoading}
           className="w-full py-3 px-4 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] active:scale-[0.99] border border-white/20 text-xs font-semibold text-white flex items-center justify-center gap-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-black/40"
           id="auth-google-login-btn"
@@ -425,14 +442,22 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
             </div>
 
             {/* Custom Google Email Form */}
-            <div className="space-y-3 pt-1">
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleDirectGoogleLogin(customGoogleEmail, customGoogleName);
+              }}
+              className="space-y-3 pt-1"
+            >
               <div>
                 <label className="block text-[11px] font-medium text-[#9291ab] mb-1">
                   Alamat Email Google / Gmail <span className="text-[#00e0c6]">*</span>
                 </label>
                 <input
                   type="email"
-                  placeholder="contoh: user@gmail.com"
+                  autoFocus
+                  required
+                  placeholder="contoh: nama@gmail.com"
                   value={customGoogleEmail}
                   onChange={(e) => setCustomGoogleEmail(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-white/[0.05] border border-white/15 rounded-xl text-xs text-white placeholder-[#615f78] focus:outline-none focus:border-[#00e0c6]"
@@ -453,9 +478,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
               </div>
 
               <button
-                type="button"
+                type="submit"
                 disabled={!customGoogleEmail.includes('@') || isGoogleLoading}
-                onClick={() => handleDirectGoogleLogin(customGoogleEmail, customGoogleName)}
                 className="w-full py-2.5 mt-2 rounded-xl bg-gradient-to-r from-[#7c5cff] to-[#00e0c6] text-white text-xs font-bold font-display disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-[#7c5cff]/20"
               >
                 {isGoogleLoading ? (
@@ -467,7 +491,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
                   <span>Lanjutkan Masuk Akun</span>
                 )}
               </button>
-            </div>
+            </form>
           </div>
         </div>
       )}
