@@ -188,17 +188,22 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
           </button>
         </div>
 
-        {/* Google 1-Click Login Section */}
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={() => handleDirectGoogleLogin('atdigitalstudio2026@gmail.com', 'AT Digital Studio')}
-            disabled={isGoogleLoading || isLoading}
-            className="w-full p-3 rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] active:scale-[0.99] border border-white/20 text-xs font-semibold text-white flex items-center justify-between transition-all cursor-pointer disabled:opacity-50 shadow-sm group"
-            id="auth-google-quick-btn"
-          >
-            <div className="flex items-center gap-3">
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+        {/* Standard Google Login Button */}
+        <button
+          type="button"
+          onClick={handleOpenGoogleAuth}
+          disabled={isGoogleLoading || isLoading}
+          className="w-full py-3 px-4 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] active:scale-[0.99] border border-white/20 text-xs font-semibold text-white flex items-center justify-center gap-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-black/40"
+          id="auth-google-login-btn"
+        >
+          {isGoogleLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin text-[#00e0c6]" />
+              <span>Memproses akun Google...</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                 <path
                   fill="#4285F4"
                   d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
@@ -216,26 +221,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
                   d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
                 />
               </svg>
-              <div className="text-left">
-                <div className="text-white font-semibold text-xs flex items-center gap-1.5">
-                  <span>Masuk via Google</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#00e0c6]/20 text-[#00e0c6] font-mono">1-Klik</span>
-                </div>
-                <div className="text-[11px] text-[#9291ab]">atdigitalstudio2026@gmail.com</div>
-              </div>
-            </div>
-            <ArrowRight className="w-4 h-4 text-[#9291ab] group-hover:text-white group-hover:translate-x-0.5 transition-all" />
-          </button>
-
-          <button
-            type="button"
-            onClick={handleOpenGoogleAuth}
-            disabled={isGoogleLoading || isLoading}
-            className="w-full text-center text-[11px] text-[#9291ab] hover:text-[#00e0c6] py-1 cursor-pointer transition-colors"
-          >
-            Pilih atau gunakan akun Google / Gmail lainnya →
-          </button>
-        </div>
+              <span>Lanjutkan dengan Akun Google</span>
+            </>
+          )}
+        </button>
 
         {/* Divider */}
         <div className="flex items-center gap-3">
@@ -428,66 +417,54 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
 
             <div className="space-y-1">
               <h3 className="font-display font-bold text-base text-white">
-                Pilih Akun Google / Gmail
+                Masuk dengan Akun Google
               </h3>
               <p className="text-xs text-[#9291ab]">
-                Pilih akun Google Anda untuk login dan menyinkronkan data klien.
+                Masukkan alamat email Google / Gmail Anda untuk masuk dan menyinkronkan profil serta lisensi software Anda.
               </p>
             </div>
 
-            {/* Predefined / Suggested Google Account */}
-            <div className="space-y-2 pt-1">
-              <button
-                type="button"
-                onClick={() => handleDirectGoogleLogin('atdigitalstudio2026@gmail.com', 'AT Digital Studio')}
-                disabled={isGoogleLoading}
-                className="w-full p-3 rounded-2xl bg-white/[0.06] hover:bg-white/[0.12] border border-[#7c5cff]/30 text-left flex items-center justify-between transition-all cursor-pointer group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#7c5cff] to-[#00e0c6] flex items-center justify-center text-[#0a0a12] font-bold text-xs">
-                    A
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-white">AT Digital Studio</div>
-                    <div className="text-[11px] text-[#9291ab]">atdigitalstudio2026@gmail.com</div>
-                  </div>
-                </div>
-                <CheckCircle2 className="w-4 h-4 text-[#00e0c6] opacity-80 group-hover:opacity-100" />
-              </button>
-            </div>
-
             {/* Custom Google Email Form */}
-            <div className="pt-2 border-t border-white/10 space-y-3">
-              <div className="text-[11px] font-semibold text-[#9291ab]">
-                Atau Masukkan Akun Google Lainnya:
+            <div className="space-y-3 pt-1">
+              <div>
+                <label className="block text-[11px] font-medium text-[#9291ab] mb-1">
+                  Alamat Email Google / Gmail <span className="text-[#00e0c6]">*</span>
+                </label>
+                <input
+                  type="email"
+                  placeholder="contoh: user@gmail.com"
+                  value={customGoogleEmail}
+                  onChange={(e) => setCustomGoogleEmail(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white/[0.05] border border-white/15 rounded-xl text-xs text-white placeholder-[#615f78] focus:outline-none focus:border-[#00e0c6]"
+                />
               </div>
-              <input
-                type="email"
-                placeholder="nama@gmail.com"
-                value={customGoogleEmail}
-                onChange={(e) => setCustomGoogleEmail(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-white/[0.05] border border-white/15 rounded-xl text-xs text-white placeholder-[#615f78] focus:outline-none focus:border-[#00e0c6]"
-              />
-              <input
-                type="text"
-                placeholder="Nama Pengguna (Opsional)"
-                value={customGoogleName}
-                onChange={(e) => setCustomGoogleName(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-white/[0.05] border border-white/15 rounded-xl text-xs text-white placeholder-[#615f78] focus:outline-none focus:border-[#00e0c6]"
-              />
+
+              <div>
+                <label className="block text-[11px] font-medium text-[#9291ab] mb-1">
+                  Nama Anda (Opsional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Nama Lengkap"
+                  value={customGoogleName}
+                  onChange={(e) => setCustomGoogleName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white/[0.05] border border-white/15 rounded-xl text-xs text-white placeholder-[#615f78] focus:outline-none focus:border-[#00e0c6]"
+                />
+              </div>
+
               <button
                 type="button"
                 disabled={!customGoogleEmail.includes('@') || isGoogleLoading}
                 onClick={() => handleDirectGoogleLogin(customGoogleEmail, customGoogleName)}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#7c5cff] to-[#00e0c6] text-white text-xs font-bold font-display disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-2.5 mt-2 rounded-xl bg-gradient-to-r from-[#7c5cff] to-[#00e0c6] text-white text-xs font-bold font-display disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-[#7c5cff]/20"
               >
                 {isGoogleLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    <span>Menghubungkan...</span>
+                    <span>Menghubungkan Akun...</span>
                   </>
                 ) : (
-                  <span>Masuk dengan Akun Ini</span>
+                  <span>Lanjutkan Masuk Akun</span>
                 )}
               </button>
             </div>
