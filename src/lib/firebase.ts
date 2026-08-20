@@ -78,13 +78,146 @@ export async function syncUserProfile(fbUser: FirebaseUser, extraData?: { compan
   return appUser;
 }
 
+declare global {
+  interface Window {
+    google?: any;
+  }
+}
+
 /**
- * Sign In with real Google Account popup
+ * Sign In using Google Identity Services (GIS)
+ * Direct Google OAuth popup that verifies the user's Google account and syncs to Firestore
+ */
+export async function loginWithGoogleGIS(): Promise<User> {
+  return new Promise((resolve, reject) => {
+    const attemptGIS = (retries = 3) => {
+      if (typeof window !== 'undefined' && window.google?.accounts?.oauth2) {
+        try {
+          const client = window.google.accounts.oauth2.initTokenClient({
+            client_id: firebaseConfig.oAuthClientId,
+            scope: 'email profile openid',
+            prompt: 'select_account',
+            callback: async (tokenResponse: any) => {
+              if (tokenResponse.error) {
+                if (tokenResponse.error === 'access_denied') {
+                  reject(new Error('Akses login Google dibatalkan oleh pengguna.'));
+                } else {
+                  reject(new Error(tokenResponse.error_description || tokenResponse.error));
+                }
+                return;
+              }
+              if (!tokenResponse.access_token) {
+                reject(new Error('Tidak menerima token otentikasi dari Google.'));
+                return;
+              }
+
+              try {
+                // Fetch verified profile from official Google OAuth UserInfo endpoint
+                const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: {
+                    Authorization: `Bearer ${tokenResponse.access_token}`
+                  }
+                });
+
+                if (!res.ok) {
+                  throw new Error('Gagal mengambil data profil Google.');
+                }
+
+                const gProfile = await res.json();
+                const uid = `google_${gProfile.sub}`;
+
+                // Sync with Firestore database
+                const userRef = doc(db, 'users', uid);
+                let appUser: User;
+
+                try {
+                  const userSnap = await getDoc(userRef);
+                  if (userSnap.exists()) {
+                    const data = userSnap.data();
+                    appUser = {
+                      id: uid,
+                      name: gProfile.name || data.name || 'Pengguna Google',
+                      email: gProfile.email || data.email || '',
+                      avatar: gProfile.picture || data.avatar,
+                      joinedDate: data.joinedDate || new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+                      company: data.company || 'Personal / Bisnis'
+                    };
+                    await setDoc(userRef, {
+                      ...appUser,
+                      lastLoginAt: new Date().toISOString()
+                    }, { merge: true });
+                  } else {
+                    appUser = {
+                      id: uid,
+                      name: gProfile.name || 'Pengguna Google',
+                      email: gProfile.email || '',
+                      avatar: gProfile.picture || undefined,
+                      joinedDate: new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+                      company: 'Personal / Bisnis'
+                    };
+                    await setDoc(userRef, {
+                      ...appUser,
+                      createdAt: new Date().toISOString(),
+                      lastLoginAt: new Date().toISOString()
+                    });
+                  }
+                } catch (dbErr) {
+                  console.warn('Firestore sync warning (falling back to client state):', dbErr);
+                  appUser = {
+                    id: uid,
+                    name: gProfile.name || 'Pengguna Google',
+                    email: gProfile.email || '',
+                    avatar: gProfile.picture || undefined,
+                    joinedDate: new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+                    company: 'Personal / Bisnis'
+                  };
+                }
+
+                // Persist session
+                localStorage.setItem('at_digital_user', JSON.stringify(appUser));
+                resolve(appUser);
+              } catch (err: any) {
+                reject(err);
+              }
+            }
+          });
+
+          client.requestAccessToken();
+        } catch (err) {
+          reject(err);
+        }
+      } else if (retries > 0) {
+        setTimeout(() => attemptGIS(retries - 1), 600);
+      } else {
+        reject(new Error('Google Identity Services belum siap. Silakan coba kembali atau gunakan Email & Kata Sandi.'));
+      }
+    };
+
+    attemptGIS();
+  });
+}
+
+/**
+ * Sign In with real Google Account
  */
 export async function loginWithGoogle(): Promise<User> {
-  const result = await signInWithPopup(auth, googleProvider);
-  const user = await syncUserProfile(result.user);
-  return user;
+  // First attempt Google Identity Services (GIS)
+  try {
+    return await loginWithGoogleGIS();
+  } catch (gisError: any) {
+    console.warn('GIS login failed, trying Firebase popup fallback:', gisError);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = await syncUserProfile(result.user);
+      return user;
+    } catch (fbError: any) {
+      console.error('Firebase Auth popup error:', fbError);
+      if (fbError.code === 'auth/unauthorized-domain') {
+        throw new Error('Domain ini belum diotorisasi di Firebase Auth Console. Silakan login langsung menggunakan Email & Kata Sandi di bawah ini.');
+      }
+      throw fbError;
+    }
+  }
 }
 
 /**
