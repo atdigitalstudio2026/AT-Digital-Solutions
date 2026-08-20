@@ -99,10 +99,19 @@ export const DashboardView: React.FC = () => {
         <div className="absolute top-0 right-0 w-80 h-80 rounded-full bg-[#7c5cff]/10 blur-3xl pointer-events-none" />
 
         <div className="flex items-center gap-5">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#7c5cff] via-[#ff4fd8] to-[#00e0c6] p-1 flex items-center justify-center shadow-lg">
-            <div className="w-full h-full rounded-2xl bg-[#07070c] flex items-center justify-center font-display font-bold text-2xl text-white">
-              {user.name.charAt(0).toUpperCase()}
-            </div>
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#7c5cff] via-[#ff4fd8] to-[#00e0c6] p-0.5 flex items-center justify-center shadow-lg shrink-0">
+            {user.avatar ? (
+              <img 
+                src={user.avatar} 
+                alt={user.name} 
+                referrerPolicy="no-referrer" 
+                className="w-full h-full rounded-2xl object-cover" 
+              />
+            ) : (
+              <div className="w-full h-full rounded-2xl bg-[#07070c] flex items-center justify-center font-display font-bold text-2xl text-white">
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1">

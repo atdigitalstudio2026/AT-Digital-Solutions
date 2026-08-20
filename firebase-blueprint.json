@@ -1,0 +1,27 @@
+{
+  "entities": {
+    "users": {
+      "fields": {
+        "id": { "type": "string", "description": "User UID" },
+        "name": { "type": "string", "description": "User display name" },
+        "email": { "type": "string", "description": "User email" },
+        "avatar": { "type": "string", "description": "User avatar photo URL" },
+        "company": { "type": "string", "description": "User company or organization" },
+        "joinedDate": { "type": "string", "description": "Formatted joined date" },
+        "createdAt": { "type": "string", "description": "Timestamp ISO" }
+      }
+    },
+    "transactions": {
+      "fields": {
+        "id": { "type": "string", "description": "Transaction ID" },
+        "userId": { "type": "string", "description": "Owner user UID" },
+        "orderNumber": { "type": "string", "description": "Order code" },
+        "date": { "type": "string", "description": "Transaction date string" },
+        "total": { "type": "number", "description": "Total payment amount in IDR" },
+        "status": { "type": "string", "description": "Payment status: Lunas | Menunggu | Dibatalkan" },
+        "paymentMethod": { "type": "string", "description": "Payment method used" },
+        "items": { "type": "array", "description": "Purchased items with license keys" }
+      }
+    }
+  }
+}

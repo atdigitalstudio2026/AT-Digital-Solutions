@@ -1,6 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Product, CartItem, User, Transaction, CategoryType, SortOption, AppRoute } from '../types';
 import { PRODUCTS } from '../data/products';
+import { 
+  auth, 
+  loginWithGoogle as fbLoginWithGoogle, 
+  loginWithEmail as fbLoginWithEmail, 
+  registerWithEmail as fbRegisterWithEmail, 
+  resetPassword as fbResetPassword, 
+  logoutUser as fbLogoutUser, 
+  syncUserProfile, 
+  saveUserTransaction, 
+  fetchUserTransactions 
+} from '../lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 interface ToastMessage {
   id: string;
@@ -38,6 +50,11 @@ interface AppContextType {
   
   // User & Auth
   user: User | null;
+  isAuthLoading: boolean;
+  loginWithGoogle: () => Promise<boolean>;
+  loginWithEmail: (email: string, pass: string) => Promise<boolean>;
+  registerWithEmail: (name: string, email: string, pass: string, company?: string) => Promise<boolean>;
+  sendPasswordReset: (email: string) => Promise<boolean>;
   login: (email: string, name?: string) => void;
   logout: () => void;
   
@@ -90,13 +107,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [discountCode, setDiscountCode] = useState<string>('');
   const [appliedDiscountPercent, setAppliedDiscountPercent] = useState<number>(0);
 
-  // User State - starts strictly as null (Guest / Logged Out) on fresh load
+  // User State & Auth Loading
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [user, setUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('at_digital_user');
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Clear any old mock demo users from previous test sessions
         if (
           !parsed || 
           parsed.id === 'usr-default' || 
@@ -121,7 +138,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // If it was just the old mock default data
           if (parsed.length === 2 && parsed.includes('orbit-tasks') && parsed.includes('cipher-vpn') && !localStorage.getItem('at_digital_user')) {
             localStorage.removeItem('at_digital_purchased');
             return [];
@@ -141,7 +157,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Clean legacy mock transactions
           const isMockOnly = parsed.every((t: any) => t.id === 'tx-init-1' || t.id === 'tx-init-2');
           if (isMockOnly) {
             localStorage.removeItem('at_digital_transactions');
@@ -155,6 +170,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return [];
     }
   });
+
+  // Listen to Firebase Auth state live changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        try {
+          const appUser = await syncUserProfile(fbUser);
+          setUser(appUser);
+          // Sync with Firestore transactions & owned products
+          const { transactions: cloudTx, purchasedProductIds: cloudPurchased } = await fetchUserTransactions(fbUser.uid);
+          if (cloudTx && cloudTx.length > 0) {
+            setTransactions(cloudTx);
+          }
+          if (cloudPurchased && cloudPurchased.length > 0) {
+            setPurchasedProductIds(cloudPurchased);
+          }
+        } catch (err) {
+          console.error('Error synchronizing Firebase user:', err);
+        }
+      } else {
+        setUser(null);
+      }
+      setIsAuthLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Modals
   const [demoProduct, setDemoProduct] = useState<Product | null>(null);
@@ -354,21 +396,98 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const cartDiscount = Math.round((cartSubtotal * appliedDiscountPercent) / 100);
   const cartTotal = Math.max(0, cartSubtotal - cartDiscount);
 
-  // User Auth
+  // Real Firebase Auth Methods
+  const loginWithGoogle = async (): Promise<boolean> => {
+    try {
+      const appUser = await fbLoginWithGoogle();
+      setUser(appUser);
+      showToast(`Selamat datang, ${appUser.name}! Berhasil masuk via Google.`, 'success');
+      return true;
+    } catch (err: any) {
+      console.error('Google login error:', err);
+      if (err.code === 'auth/popup-closed-by-user') {
+        showToast('Login Google dibatalkan.', 'info');
+      } else if (err.code === 'auth/popup-blocked') {
+        showToast('Popup browser diblokir. Harap izinkan popup untuk login dengan Google.', 'warning');
+      } else {
+        showToast(err.message || 'Gagal masuk dengan akun Google.', 'error');
+      }
+      return false;
+    }
+  };
+
+  const loginWithEmail = async (email: string, pass: string): Promise<boolean> => {
+    try {
+      const appUser = await fbLoginWithEmail(email, pass);
+      setUser(appUser);
+      showToast(`Selamat datang kembali, ${appUser.name}!`, 'success');
+      return true;
+    } catch (err: any) {
+      console.error('Email login error:', err);
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        showToast('Alamat email atau kata sandi yang Anda masukkan salah.', 'error');
+      } else if (err.code === 'auth/invalid-email') {
+        showToast('Format alamat email tidak valid.', 'warning');
+      } else if (err.code === 'auth/too-many-requests') {
+        showToast('Terlalu banyak percobaan gagal. Silakan coba beberapa saat lagi.', 'warning');
+      } else {
+        showToast(err.message || 'Gagal masuk ke akun.', 'error');
+      }
+      return false;
+    }
+  };
+
+  const registerWithEmail = async (name: string, email: string, pass: string, company?: string): Promise<boolean> => {
+    try {
+      const appUser = await fbRegisterWithEmail(name, email, pass, company);
+      setUser(appUser);
+      showToast(`Akun Anda (${appUser.name}) berhasil didaftarkan!`, 'success');
+      return true;
+    } catch (err: any) {
+      console.error('Register error:', err);
+      if (err.code === 'auth/email-already-in-use') {
+        showToast('Alamat email ini sudah terdaftar. Silakan masuk menggunakan kata sandi Anda.', 'warning');
+      } else if (err.code === 'auth/weak-password') {
+        showToast('Kata sandi terlalu lemah. Gunakan minimal 6 karakter.', 'warning');
+      } else {
+        showToast(err.message || 'Gagal mendaftarkan akun baru.', 'error');
+      }
+      return false;
+    }
+  };
+
+  const sendPasswordReset = async (email: string): Promise<boolean> => {
+    try {
+      await fbResetPassword(email);
+      showToast(`Tautan pemulihan kata sandi telah dikirim ke email ${email}.`, 'success');
+      return true;
+    } catch (err: any) {
+      console.error('Password reset error:', err);
+      showToast(err.message || 'Gagal mengirim email reset kata sandi.', 'error');
+      return false;
+    }
+  };
+
+  // Fallback direct login (used only if offline or needed)
   const login = (email: string, name?: string) => {
     const username = name || email.split('@')[0];
     const newUser: User = {
       id: `usr-${Date.now()}`,
       name: username.charAt(0).toUpperCase() + username.slice(1),
       email,
-      joinedDate: 'Agustus 2026',
+      joinedDate: new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
       company: 'AT Digital Solution Client'
     };
     setUser(newUser);
     showToast(`Selamat datang kembali, ${newUser.name}!`, 'success');
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await fbLogoutUser();
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
     setUser(null);
     showToast('Anda telah keluar dari sesi akun.', 'info');
     navigateTo({ name: 'home' });
@@ -417,6 +536,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setDiscountCode('');
     setAppliedDiscountPercent(0);
 
+    // Save to Firestore if user logged in
+    if (user?.id) {
+      saveUserTransaction(user.id, newTx, newPurchased);
+    }
+
     return newTx;
   };
 
@@ -462,6 +586,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         applyDiscountCode,
         appliedDiscountPercent,
         user,
+        isAuthLoading,
+        loginWithGoogle,
+        loginWithEmail,
+        registerWithEmail,
+        sendPasswordReset,
         login,
         logout,
         purchasedProductIds,

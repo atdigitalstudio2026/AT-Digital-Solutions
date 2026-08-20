@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+      
+      // User transactions subcollection
+      match /transactions/{transactionId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User purchased products subcollection
+      match /purchases/{purchaseId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Global transactions collection (keyed with userId check)
+    match /transactions/{transactionId} {
+      allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+    }
+
+    // General fallback rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

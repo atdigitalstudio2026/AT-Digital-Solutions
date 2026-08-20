@@ -167,9 +167,18 @@ export const Navbar: React.FC = () => {
                 className="flex items-center gap-2.5 p-1.5 pl-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white transition-all"
                 id="nav-user-dropdown"
               >
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-[#7c5cff] to-[#00e0c6] flex items-center justify-center font-bold text-xs text-[#0a0a12]">
-                  {user.name.charAt(0).toUpperCase()}
-                </div>
+                {user.avatar ? (
+                  <img 
+                    src={user.avatar} 
+                    alt={user.name} 
+                    referrerPolicy="no-referrer" 
+                    className="w-7 h-7 rounded-lg object-cover border border-white/20" 
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-[#7c5cff] to-[#00e0c6] flex items-center justify-center font-bold text-xs text-[#0a0a12]">
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <span className="text-xs font-semibold hidden sm:inline max-w-[100px] truncate">
                   {user.name}
                 </span>
