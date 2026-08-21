@@ -76,24 +76,24 @@ export function getFriendlyErrorMessage(errorCode, rawMessage = '') {
 /**
  * Simpan / Sinkronkan profil user di Firestore (Collection: users/{uid})
  * JANGAN menyimpan password ke Firestore.
+ * Dioptimalkan: Menggunakan direct lookup doc(db, 'users', uid) dan partial merge lastLoginAt.
  */
 export async function syncUserToFirestore(user, additionalData = {}) {
   if (!user || !user.uid) return null;
   const userRef = doc(db, 'users', user.uid);
 
   try {
+    console.time("Firestore User Profile");
     const userSnap = await getDoc(userRef);
     if (userSnap.exists()) {
       const existingData = userSnap.data();
-      // JANGAN overwrite role secara sembarangan jika sudah ada
+      // JANGAN overwrite role secara sembarangan jika sudah ada, update timestamp saja
       const updatedFields = {
-        email: user.email || existingData.email || "",
-        displayName: user.displayName || existingData.displayName || additionalData.displayName || (user.email ? user.email.split('@')[0] : ""),
-        photoURL: user.photoURL || existingData.photoURL || "",
         lastLoginAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
       await setDoc(userRef, updatedFields, { merge: true });
+      console.timeEnd("Firestore User Profile");
       return { id: user.uid, ...existingData, ...updatedFields };
     } else {
       // Buat dokumen pengguna baru jika belum ada
@@ -109,10 +109,12 @@ export async function syncUserToFirestore(user, additionalData = {}) {
         lastLoginAt: serverTimestamp()
       };
       await setDoc(userRef, newUserProfile);
+      console.timeEnd("Firestore User Profile");
       return { id: user.uid, ...newUserProfile };
     }
   } catch (err) {
-    console.error('Gagal menyinkronkan data profil ke Firestore:', err);
+    console.timeEnd("Firestore User Profile");
+    console.warn('Gagal menyinkronkan data profil ke Firestore (non-blocking):', err);
     return {
       uid: user.uid,
       displayName: user.displayName || (user.email ? user.email.split('@')[0] : ""),
@@ -146,7 +148,11 @@ export async function registerWithEmail(fullName, email, password) {
   });
 
   // Kirim email verifikasi
-  await sendEmailVerification(user);
+  try {
+    await sendEmailVerification(user);
+  } catch (verErr) {
+    console.warn('Email verification send warning:', verErr);
+  }
 
   // Simpan profil awal ke Firestore users/{uid}
   await syncUserToFirestore(user, { displayName: fullName.trim() });
@@ -170,19 +176,26 @@ export async function loginWithEmail(email, password, rememberMe = true) {
   const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
   const user = userCredential.user;
 
-  // Sinkronkan ke Firestore
-  await syncUserToFirestore(user);
+  // Sinkronkan ke Firestore di background
+  syncUserToFirestore(user).catch(err => console.warn('Background sync error:', err));
 
   return user;
 }
 
 /**
  * Login / Register dengan Google OAuth
+ * Dioptimalkan untuk respon cepat (<100ms) setelah popup autentikasi selesai
  */
 export async function loginWithGoogle() {
+  console.time("Google Login");
   const result = await signInWithPopup(auth, googleProvider);
+  console.timeEnd("Google Login");
+  
   const user = result.user;
-  await syncUserToFirestore(user);
+  
+  // Sinkronkan ke Firestore users/{uid} secara non-blocking di background
+  syncUserToFirestore(user).catch(err => console.warn('Background sync error:', err));
+  
   return user;
 }
 

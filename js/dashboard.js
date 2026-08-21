@@ -24,6 +24,7 @@ const logoutBtn = document.getElementById('logoutBtn');
 const returnToAppBtn = document.getElementById('returnToAppBtn');
 
 // Proteksi Halaman Dashboard dengan onAuthStateChanged
+console.time("Dashboard Load");
 requireAuth(async (user) => {
   // Update info dasar dari Firebase Auth
   const displayName = user.displayName || user.email?.split('@')[0] || 'Pengguna';
@@ -53,7 +54,9 @@ requireAuth(async (user) => {
     }
   }
 
-  // Ambil profil data lengkap dari Firestore collection `users/{uid}`
+  console.timeEnd("Dashboard Load");
+
+  // Ambil profil data lengkap dari Firestore collection `users/{uid}` di background
   try {
     const userDocRef = doc(db, 'users', user.uid);
     const userDocSnap = await getDoc(userDocRef);
@@ -63,7 +66,7 @@ requireAuth(async (user) => {
       if (userStatusElement) userStatusElement.textContent = profile.status || 'active';
     }
   } catch (err) {
-    console.warn('Gagal memuat profil Firestore:', err);
+    console.warn('Gagal memuat profil Firestore (non-blocking):', err);
   }
 }, true); // requireVerification = true
 

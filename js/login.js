@@ -84,13 +84,11 @@ loginForm.addEventListener('submit', async (e) => {
     const user = await loginWithEmail(email, password, rememberMe);
     showSuccess('Berhasil masuk! Mengalihkan ke dashboard...');
     
-    setTimeout(() => {
-      if (user.emailVerified) {
-        window.location.href = 'dashboard.html';
-      } else {
-        window.location.href = 'verify-email.html';
-      }
-    }, 600);
+    if (user.emailVerified) {
+      window.location.href = 'dashboard.html';
+    } else {
+      window.location.href = 'verify-email.html';
+    }
   } catch (error) {
     console.error('Login error:', error);
     const friendlyMsg = getFriendlyErrorMessage(error.code || '', error.message || '');
@@ -103,15 +101,16 @@ loginForm.addEventListener('submit', async (e) => {
 googleBtn.addEventListener('click', async () => {
   clearAlerts();
   setLoading(true);
+  const originalGoogleHtml = googleBtn.innerHTML;
+  googleBtn.innerHTML = `<span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#00e0c6;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;"></span><span>Memproses login...</span>`;
 
   try {
-    const user = await loginWithGoogle();
-    showSuccess('Login Google berhasil! Mengalihkan...');
-    setTimeout(() => {
-      window.location.href = 'dashboard.html';
-    }, 600);
+    await loginWithGoogle();
+    showSuccess('Login Google berhasil! Mengalihkan ke dashboard...');
+    window.location.href = 'dashboard.html';
   } catch (error) {
     console.error('Google login error:', error);
+    googleBtn.innerHTML = originalGoogleHtml;
     const friendlyMsg = getFriendlyErrorMessage(error.code || '', error.message || '');
     showError(friendlyMsg);
     setLoading(false);

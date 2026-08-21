@@ -173,15 +173,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   });
 
-  // Listen to Firebase Auth state live changes
+  // Listen to Firebase Auth state live changes (Optimized single listener, non-blocking)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
+        // Tampilkan profil dasar dari Firebase Auth secara instan
+        setUser((prev) => {
+          if (prev && prev.id === fbUser.uid) return prev;
+          return {
+            id: fbUser.uid,
+            name: fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Pengguna AT'),
+            email: fbUser.email || '',
+            avatar: fbUser.photoURL || undefined,
+            joinedDate: new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+            company: 'Personal / Bisnis'
+          };
+        });
+        setIsAuthLoading(false);
+
+        // Muat data transaksi & sinkronisasi Firestore di background (Non-blocking)
         try {
-          const appUser = await syncUserProfile(fbUser);
-          setUser(appUser);
-          // Sync with Firestore transactions & owned products
-          const { transactions: cloudTx, purchasedProductIds: cloudPurchased } = await fetchUserTransactions(fbUser.uid);
+          const syncPromise = syncUserProfile(fbUser);
+          const txPromise = fetchUserTransactions(fbUser.uid);
+
+          const [appUser, { transactions: cloudTx, purchasedProductIds: cloudPurchased }] = await Promise.all([
+            syncPromise,
+            txPromise
+          ]);
+
+          if (appUser) {
+            setUser(appUser);
+          }
           if (cloudTx && cloudTx.length > 0) {
             setTransactions(cloudTx);
           }
@@ -189,12 +211,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setPurchasedProductIds(cloudPurchased);
           }
         } catch (err) {
-          console.error('Error synchronizing Firebase user:', err);
+          console.warn('Background sync error (non-blocking):', err);
         }
       } else {
         setUser(null);
+        setIsAuthLoading(false);
       }
-      setIsAuthLoading(false);
     });
 
     return () => unsubscribe();
@@ -403,10 +425,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const appUser = await fbLoginWithGoogle();
       setUser(appUser);
-      // Fetch user cloud data
-      const { transactions: cloudTx, purchasedProductIds: cloudPurchased } = await fetchUserTransactions(appUser.id);
-      if (cloudTx && cloudTx.length > 0) setTransactions(cloudTx);
-      if (cloudPurchased && cloudPurchased.length > 0) setPurchasedProductIds(cloudPurchased);
+      
+      // Fetch user cloud data asynchronously di background (non-blocking)
+      fetchUserTransactions(appUser.id).then(({ transactions: cloudTx, purchasedProductIds: cloudPurchased }) => {
+        if (cloudTx && cloudTx.length > 0) setTransactions(cloudTx);
+        if (cloudPurchased && cloudPurchased.length > 0) setPurchasedProductIds(cloudPurchased);
+      }).catch(err => {
+        console.warn('Background transaction loading warning:', err);
+      });
+
       showToast(`Selamat datang, ${appUser.name}! Berhasil masuk via Google.`, 'success');
       return true;
     } catch (err: any) {

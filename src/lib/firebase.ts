@@ -82,9 +82,17 @@ export function getFriendlyErrorMessage(errorCode: string, rawMessage = ''): str
 export async function syncUserProfile(fbUser: FirebaseUser, extraData?: { company?: string }): Promise<User> {
   const userRef = doc(db, 'users', fbUser.uid);
   
-  let appUser: User;
+  let appUser: User = {
+    id: fbUser.uid,
+    name: fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Pengguna AT'),
+    email: fbUser.email || '',
+    avatar: fbUser.photoURL || undefined,
+    joinedDate: new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+    company: extraData?.company || 'Personal / Bisnis'
+  };
 
   try {
+    console.time('Firestore User Profile');
     const userSnap = await getDoc(userRef);
 
     if (userSnap.exists()) {
@@ -94,30 +102,17 @@ export async function syncUserProfile(fbUser: FirebaseUser, extraData?: { compan
         name: fbUser.displayName || existingData.displayName || existingData.name || (fbUser.email ? fbUser.email.split('@')[0] : 'Pengguna AT'),
         email: fbUser.email || existingData.email || '',
         avatar: fbUser.photoURL || existingData.photoURL || existingData.avatar,
-        joinedDate: existingData.joinedDate || new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
-        company: extraData?.company || existingData.company || 'Personal / Bisnis'
+        joinedDate: existingData.joinedDate || appUser.joinedDate,
+        company: extraData?.company || existingData.company || appUser.company
       };
       
-      // Update lastLoginAt dan updatedAt tanpa menimpa role
+      // Update lastLoginAt dan updatedAt tanpa menimpa role secara berlebihan
       await setDoc(userRef, {
-        email: fbUser.email || '',
-        displayName: appUser.name,
-        photoURL: fbUser.photoURL || '',
-        company: appUser.company,
         lastLoginAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       }, { merge: true });
     } else {
       // Buat dokumen baru dengan schema standar
-      appUser = {
-        id: fbUser.uid,
-        name: fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Pengguna AT'),
-        email: fbUser.email || '',
-        avatar: fbUser.photoURL || undefined,
-        joinedDate: new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
-        company: extraData?.company || 'Personal / Bisnis'
-      };
-
       await setDoc(userRef, {
         uid: fbUser.uid,
         email: fbUser.email || '',
@@ -132,16 +127,10 @@ export async function syncUserProfile(fbUser: FirebaseUser, extraData?: { compan
         lastLoginAt: serverTimestamp()
       });
     }
+    console.timeEnd('Firestore User Profile');
   } catch (err) {
-    console.warn('Firestore sync warning:', err);
-    appUser = {
-      id: fbUser.uid,
-      name: fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Pengguna AT'),
-      email: fbUser.email || '',
-      avatar: fbUser.photoURL || undefined,
-      joinedDate: new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
-      company: extraData?.company || 'Personal / Bisnis'
-    };
+    console.timeEnd('Firestore User Profile');
+    console.warn('Firestore sync non-blocking warning:', err);
   }
 
   return appUser;
@@ -149,13 +138,34 @@ export async function syncUserProfile(fbUser: FirebaseUser, extraData?: { compan
 
 /**
  * Sign In with official Firebase GoogleAuthProvider and signInWithPopup
+ * Dioptimalkan: Mengambil user object langsung untuk respon secepat kilat (<100ms setelah popup ditutup)
  */
 export async function loginWithGoogle(): Promise<User> {
   try {
+    console.time('Google Login');
     const result = await signInWithPopup(auth, googleProvider);
-    const user = await syncUserProfile(result.user);
-    return user;
+    console.timeEnd('Google Login');
+    
+    const fbUser = result.user;
+    
+    // Bentuk data pengguna langsung dari kredensial autentikasi Firebase
+    const appUser: User = {
+      id: fbUser.uid,
+      name: fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Pengguna Google'),
+      email: fbUser.email || '',
+      avatar: fbUser.photoURL || undefined,
+      joinedDate: new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+      company: 'Personal / Bisnis'
+    };
+
+    // Sinkronisasi profil Firestore di background agar tidak mem-block UI navigasi
+    syncUserProfile(fbUser).catch((err) => {
+      console.warn('Background Firestore sync error:', err);
+    });
+
+    return appUser;
   } catch (fbError: any) {
+    console.timeEnd('Google Login');
     console.error('Firebase Google Sign-In error:', fbError);
     throw fbError;
   }

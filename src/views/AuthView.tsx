@@ -79,9 +79,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
     setErrorMessage(null);
     setIsGoogleLoading(true);
     try {
+      console.time('Dashboard Load');
       const ok = await loginWithGoogle();
       if (ok) {
         navigateTo('/dashboard');
+        console.timeEnd('Dashboard Load');
         return;
       }
     } catch (err: any) {
