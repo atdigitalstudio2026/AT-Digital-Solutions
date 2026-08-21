@@ -11,7 +11,9 @@ service cloud.firestore {
 
     // User profiles
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read, update: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow delete: if false;
       
       // User transactions subcollection
       match /transactions/{transactionId} {

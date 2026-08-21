@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Pengguna - AT Digital</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+  <div class="ambient-bg">
+    <div class="glow-orb glow-1"></div>
+    <div class="glow-orb glow-2"></div>
+  </div>
+
+  <!-- Navbar -->
+  <header class="dash-nav">
+    <div class="container dash-nav-inner">
+      <a href="index.html" class="dash-brand">
+        <div class="dash-brand-icon">AT</div>
+        <span class="dash-brand-name">AT DIGITAL STUDIO</span>
+      </a>
+
+      <div class="dash-user-menu">
+        <div class="user-profile-badge">
+          <div class="user-avatar" id="userAvatar">U</div>
+          <span class="user-name-text" id="navUserName">Pengguna</span>
+        </div>
+        <button type="button" class="btn btn-secondary" id="logoutBtn" style="padding: 8px 16px; font-size: 13px;">
+          Keluar
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="dash-content">
+    <div class="container">
+      <div class="dash-welcome-card">
+        <h1 class="dash-welcome-title">Selamat Datang, <span id="userName">Pengguna</span>!</h1>
+        <p class="dash-welcome-subtitle">
+          Sistem autentikasi Firebase Authentication & Firestore terhubung dengan aman. Status akun dan sesi Anda valid.
+        </p>
+      </div>
+
+      <!-- Quick Metrics Grid -->
+      <div class="dash-grid">
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <span class="dash-card-title">Status Email</span>
+            <div class="dash-card-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+              </svg>
+            </div>
+          </div>
+          <div>
+            <span id="verifiedBadge" class="badge-verified">✓ Terverifikasi</span>
+          </div>
+        </div>
+
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <span class="dash-card-title">Peran Akun</span>
+            <div class="dash-card-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+            </div>
+          </div>
+          <div class="dash-card-value" id="userRole">user</div>
+        </div>
+
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <span class="dash-card-title">Status Akun</span>
+            <div class="dash-card-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 14 14"></polyline>
+              </svg>
+            </div>
+          </div>
+          <div class="dash-card-value" id="userStatus" style="color: var(--accent-cyan); text-transform: capitalize;">active</div>
+        </div>
+      </div>
+
+      <!-- User Profile Document Summary -->
+      <div class="dash-card" style="margin-bottom: 24px;">
+        <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px; color: #fff;">
+          Informasi Kredensial Firebase (users/{uid})
+        </h2>
+        <div class="dash-detail-list">
+          <div class="dash-detail-item">
+            <span class="dash-detail-label">Firebase Auth UID</span>
+            <span class="dash-detail-val" id="userUid" style="font-family: monospace; font-size: 12px;">-</span>
+          </div>
+          <div class="dash-detail-item">
+            <span class="dash-detail-label">Email Terdaftar</span>
+            <span class="dash-detail-val" id="userEmail">-</span>
+          </div>
+          <div class="dash-detail-item">
+            <span class="dash-detail-label">Penyimpanan Kata Sandi</span>
+            <span class="dash-detail-val" style="color: var(--success);">Terenkripsi Standar Firebase Auth (Tidak disimpan di database)</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <a href="index.html" class="btn btn-primary" id="returnToAppBtn">
+          Buka Katalog Software & Lisensi
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="js/dashboard.js"></script>
+</body>
+</html>

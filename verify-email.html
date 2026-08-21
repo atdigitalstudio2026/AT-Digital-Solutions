@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verifikasi Email Anda - AT Digital</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/auth.css">
+</head>
+<body>
+  <div class="ambient-bg">
+    <div class="glow-orb glow-1"></div>
+    <div class="glow-orb glow-2"></div>
+  </div>
+
+  <div class="auth-wrapper">
+    <div class="auth-card" id="verifyCard">
+      <div class="auth-header">
+        <div class="verify-icon-box">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h9"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+            <circle cx="18" cy="18" r="3"></circle>
+            <polyline points="17 18 18 19 20 17"></polyline>
+          </svg>
+        </div>
+        <h1 class="auth-title">Silakan verifikasi email Anda</h1>
+        <p class="auth-subtitle">Kami telah mengirimkan tautan konfirmasi keamanan ke alamat email:</p>
+        <div class="email-badge" id="userEmailText">Memuat email...</div>
+        <p class="auth-subtitle" style="margin-top: 6px; font-size: 12px;">
+          Buka inbox atau folder spam email Anda, klik tautan verifikasi, kemudian klik tombol di bawah untuk melanjutkan.
+        </p>
+      </div>
+
+      <div id="alertError" class="alert alert-error" role="alert"></div>
+      <div id="alertSuccess" class="alert alert-success" role="alert"></div>
+
+      <div class="auth-form">
+        <button type="button" class="btn btn-primary" id="checkVerifiedBtn">
+          <div class="spinner"></div>
+          <span class="btn-text">Saya sudah memverifikasi</span>
+        </button>
+
+        <button type="button" class="btn btn-secondary" id="resendBtn">
+          <div class="spinner"></div>
+          <span class="btn-text">Kirim ulang email verifikasi</span>
+        </button>
+      </div>
+
+      <div class="auth-footer">
+        Ingin menggunakan akun lain? <a href="#" id="logoutBtn">Keluar / Ganti Akun</a>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/verify-email.js"></script>
+</body>
+</html>
