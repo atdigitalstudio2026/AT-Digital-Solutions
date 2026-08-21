@@ -4,14 +4,14 @@ import { PRODUCTS } from '../data/products';
 import { 
   auth, 
   loginWithGoogle as fbLoginWithGoogle, 
-  loginWithDirectGoogleAccount,
   loginWithEmail as fbLoginWithEmail, 
   registerWithEmail as fbRegisterWithEmail, 
   resetPassword as fbResetPassword, 
   logoutUser as fbLogoutUser, 
   syncUserProfile, 
   saveUserTransaction, 
-  fetchUserTransactions 
+  fetchUserTransactions,
+  getFriendlyErrorMessage 
 } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -411,32 +411,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return true;
     } catch (err: any) {
       console.error('Google login error:', err);
-      if (err.code === 'auth/popup-closed-by-user') {
-        showToast('Login Google dibatalkan.', 'info');
-      } else if (err.code === 'auth/popup-blocked') {
-        showToast('Popup browser diblokir. Harap izinkan popup untuk login dengan Google.', 'warning');
-      } else {
-        showToast(err.message || 'Gagal masuk dengan akun Google.', 'error');
-      }
+      const friendly = getFriendlyErrorMessage(err.code || '', err.message || '');
+      showToast(friendly, 'error');
       return false;
     }
   };
 
   const loginWithGoogleAccount = async (email: string, name?: string, avatar?: string): Promise<boolean> => {
-    try {
-      const appUser = await loginWithDirectGoogleAccount(email, name, avatar);
-      setUser(appUser);
-      // Fetch user cloud data
-      const { transactions: cloudTx, purchasedProductIds: cloudPurchased } = await fetchUserTransactions(appUser.id);
-      if (cloudTx && cloudTx.length > 0) setTransactions(cloudTx);
-      if (cloudPurchased && cloudPurchased.length > 0) setPurchasedProductIds(cloudPurchased);
-      showToast(`Selamat datang, ${appUser.name}! Berhasil masuk via Akun Google.`, 'success');
-      return true;
-    } catch (err: any) {
-      console.error('Direct Google login error:', err);
-      showToast(err.message || 'Gagal masuk dengan akun Google.', 'error');
-      return false;
-    }
+    return loginWithGoogle();
   };
 
   const loginWithEmail = async (email: string, pass: string): Promise<boolean> => {

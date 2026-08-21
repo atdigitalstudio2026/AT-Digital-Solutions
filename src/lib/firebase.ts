@@ -7,6 +7,7 @@ import {
   createUserWithEmailAndPassword, 
   signOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
   updateProfile,
   onAuthStateChanged,
   User as FirebaseUser
@@ -17,10 +18,8 @@ import {
   getDoc, 
   setDoc, 
   collection, 
-  getDocs, 
-  query, 
-  where,
-  orderBy 
+  getDocs,
+  serverTimestamp
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { User, Transaction } from '../types';
@@ -36,243 +35,129 @@ googleProvider.setCustomParameters({
 });
 
 /**
+ * Format and map friendly error message for Firebase Auth errors
+ */
+export function getFriendlyErrorMessage(errorCode: string, rawMessage = ''): string {
+  const combined = (errorCode + ' ' + rawMessage).toLowerCase();
+
+  if (combined.includes('origin_mismatch') || combined.includes('origin mismatch') || combined.includes('redirect_uri_mismatch')) {
+    return 'Origin website belum terdaftar pada Google OAuth Client. Periksa Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs → Authorized JavaScript origins.';
+  }
+
+  switch (errorCode) {
+    case 'auth/unauthorized-domain':
+      return 'Domain website ini belum diizinkan di Firebase Authentication. Periksa Firebase Console → Authentication → Settings → Authorized domains.';
+    case 'auth/operation-not-allowed':
+      return 'Metode login ini belum diaktifkan. Periksa Firebase Console → Authentication → Sign-in method → Aktifkan Google / Email.';
+    case 'auth/popup-closed-by-user':
+      return 'Jendela login Google ditutup sebelum proses selesai.';
+    case 'auth/popup-blocked':
+      return 'Popup login diblokir oleh browser. Harap izinkan popup pada browser Anda.';
+    case 'auth/cancelled-popup-request':
+      return 'Permintaan login Google dibatalkan karena ada popup lain yang terbuka.';
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+      return 'Email atau kata sandi yang Anda masukkan salah.';
+    case 'auth/email-already-in-use':
+      return 'Alamat email ini sudah terdaftar. Silakan masuk menggunakan akun tersebut.';
+    case 'auth/weak-password':
+      return 'Kata sandi terlalu lemah. Gunakan minimal 8 karakter.';
+    case 'auth/invalid-email':
+      return 'Format alamat email tidak valid.';
+    case 'auth/too-many-requests':
+      return 'Terlalu banyak percobaan gagal. Silakan coba beberapa saat lagi.';
+    case 'auth/network-request-failed':
+      return 'Koneksi jaringan terputus. Periksa koneksi internet Anda.';
+    default:
+      return rawMessage || 'Terjadi kesalahan saat autentikasi. Silakan coba lagi.';
+  }
+}
+
+/**
  * Format Firebase Auth User to App User model and sync to Firestore
+ * Dokumen disimpan pada users/{user.uid}
+ * Password TIDAK PERNAH disimpan di Firestore.
  */
 export async function syncUserProfile(fbUser: FirebaseUser, extraData?: { company?: string }): Promise<User> {
   const userRef = doc(db, 'users', fbUser.uid);
-  const userSnap = await getDoc(userRef);
-
-  let appUser: User;
-
-  if (userSnap.exists()) {
-    const data = userSnap.data();
-    appUser = {
-      id: fbUser.uid,
-      name: fbUser.displayName || data.name || fbUser.email?.split('@')[0] || 'Pengguna AT',
-      email: fbUser.email || data.email || '',
-      avatar: fbUser.photoURL || data.avatar,
-      joinedDate: data.joinedDate || new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
-      company: extraData?.company || data.company || 'Personal / Bisnis'
-    };
-    // Update last active
-    await setDoc(userRef, {
-      ...appUser,
-      lastLoginAt: new Date().toISOString()
-    }, { merge: true });
-  } else {
-    appUser = {
-      id: fbUser.uid,
-      name: fbUser.displayName || fbUser.email?.split('@')[0] || 'Pengguna AT',
-      email: fbUser.email || '',
-      avatar: fbUser.photoURL || undefined,
-      joinedDate: new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
-      company: extraData?.company || 'Personal / Bisnis'
-    };
-    await setDoc(userRef, {
-      ...appUser,
-      createdAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString()
-    });
-  }
-
-  return appUser;
-}
-
-declare global {
-  interface Window {
-    google?: any;
-  }
-}
-
-/**
- * Sign In using Google Identity Services (GIS)
- * Direct Google OAuth popup that verifies the user's Google account and syncs to Firestore
- */
-export async function loginWithGoogleGIS(): Promise<User> {
-  return new Promise((resolve, reject) => {
-    const attemptGIS = (retries = 3) => {
-      if (typeof window !== 'undefined' && window.google?.accounts?.oauth2) {
-        try {
-          const client = window.google.accounts.oauth2.initTokenClient({
-            client_id: firebaseConfig.oAuthClientId,
-            scope: 'email profile openid',
-            prompt: 'select_account',
-            callback: async (tokenResponse: any) => {
-              if (tokenResponse.error) {
-                if (tokenResponse.error === 'access_denied') {
-                  reject(new Error('Akses login Google dibatalkan oleh pengguna.'));
-                } else {
-                  reject(new Error(tokenResponse.error_description || tokenResponse.error));
-                }
-                return;
-              }
-              if (!tokenResponse.access_token) {
-                reject(new Error('Tidak menerima token otentikasi dari Google.'));
-                return;
-              }
-
-              try {
-                // Fetch verified profile from official Google OAuth UserInfo endpoint
-                const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                  headers: {
-                    Authorization: `Bearer ${tokenResponse.access_token}`
-                  }
-                });
-
-                if (!res.ok) {
-                  throw new Error('Gagal mengambil data profil Google.');
-                }
-
-                const gProfile = await res.json();
-                const uid = `google_${gProfile.sub}`;
-
-                // Sync with Firestore database
-                const userRef = doc(db, 'users', uid);
-                let appUser: User;
-
-                try {
-                  const userSnap = await getDoc(userRef);
-                  if (userSnap.exists()) {
-                    const data = userSnap.data();
-                    appUser = {
-                      id: uid,
-                      name: gProfile.name || data.name || 'Pengguna Google',
-                      email: gProfile.email || data.email || '',
-                      avatar: gProfile.picture || data.avatar,
-                      joinedDate: data.joinedDate || new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
-                      company: data.company || 'Personal / Bisnis'
-                    };
-                    await setDoc(userRef, {
-                      ...appUser,
-                      lastLoginAt: new Date().toISOString()
-                    }, { merge: true });
-                  } else {
-                    appUser = {
-                      id: uid,
-                      name: gProfile.name || 'Pengguna Google',
-                      email: gProfile.email || '',
-                      avatar: gProfile.picture || undefined,
-                      joinedDate: new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
-                      company: 'Personal / Bisnis'
-                    };
-                    await setDoc(userRef, {
-                      ...appUser,
-                      createdAt: new Date().toISOString(),
-                      lastLoginAt: new Date().toISOString()
-                    });
-                  }
-                } catch (dbErr) {
-                  console.warn('Firestore sync warning (falling back to client state):', dbErr);
-                  appUser = {
-                    id: uid,
-                    name: gProfile.name || 'Pengguna Google',
-                    email: gProfile.email || '',
-                    avatar: gProfile.picture || undefined,
-                    joinedDate: new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
-                    company: 'Personal / Bisnis'
-                  };
-                }
-
-                // Persist session
-                localStorage.setItem('at_digital_user', JSON.stringify(appUser));
-                resolve(appUser);
-              } catch (err: any) {
-                reject(err);
-              }
-            }
-          });
-
-          client.requestAccessToken();
-        } catch (err) {
-          reject(err);
-        }
-      } else if (retries > 0) {
-        setTimeout(() => attemptGIS(retries - 1), 600);
-      } else {
-        reject(new Error('Google Identity Services belum siap. Silakan coba kembali atau gunakan Email & Kata Sandi.'));
-      }
-    };
-
-    attemptGIS();
-  });
-}
-
-/**
- * Direct Google Account Authentication & Firestore Synchronizer
- */
-export async function loginWithDirectGoogleAccount(email: string, name?: string, avatar?: string): Promise<User> {
-  const cleanEmail = email.trim().toLowerCase();
-  const userName = name || cleanEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  const uid = `google_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
-  const userAvatar = avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userName)}&backgroundColor=7c5cff,00e0c6`;
-
-  const userRef = doc(db, 'users', uid);
+  
   let appUser: User;
 
   try {
     const userSnap = await getDoc(userRef);
+
     if (userSnap.exists()) {
-      const data = userSnap.data();
+      const existingData = userSnap.data();
       appUser = {
-        id: uid,
-        name: data.name || userName,
-        email: cleanEmail,
-        avatar: data.avatar || userAvatar,
-        joinedDate: data.joinedDate || new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
-        company: data.company || 'Personal / Bisnis'
+        id: fbUser.uid,
+        name: fbUser.displayName || existingData.displayName || existingData.name || (fbUser.email ? fbUser.email.split('@')[0] : 'Pengguna AT'),
+        email: fbUser.email || existingData.email || '',
+        avatar: fbUser.photoURL || existingData.photoURL || existingData.avatar,
+        joinedDate: existingData.joinedDate || new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+        company: extraData?.company || existingData.company || 'Personal / Bisnis'
       };
+      
+      // Update lastLoginAt dan updatedAt tanpa menimpa role
       await setDoc(userRef, {
-        ...appUser,
-        lastLoginAt: new Date().toISOString()
+        email: fbUser.email || '',
+        displayName: appUser.name,
+        photoURL: fbUser.photoURL || '',
+        company: appUser.company,
+        lastLoginAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       }, { merge: true });
     } else {
+      // Buat dokumen baru dengan schema standar
       appUser = {
-        id: uid,
-        name: userName,
-        email: cleanEmail,
-        avatar: userAvatar,
+        id: fbUser.uid,
+        name: fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Pengguna AT'),
+        email: fbUser.email || '',
+        avatar: fbUser.photoURL || undefined,
         joinedDate: new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
-        company: 'Personal / Bisnis'
+        company: extraData?.company || 'Personal / Bisnis'
       };
+
       await setDoc(userRef, {
-        ...appUser,
-        createdAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString()
+        uid: fbUser.uid,
+        email: fbUser.email || '',
+        displayName: appUser.name,
+        photoURL: fbUser.photoURL || '',
+        role: 'user',
+        status: 'active',
+        company: appUser.company,
+        joinedDate: appUser.joinedDate,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        lastLoginAt: serverTimestamp()
       });
     }
   } catch (err) {
     console.warn('Firestore sync warning:', err);
     appUser = {
-      id: uid,
-      name: userName,
-      email: cleanEmail,
-      avatar: userAvatar,
+      id: fbUser.uid,
+      name: fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Pengguna AT'),
+      email: fbUser.email || '',
+      avatar: fbUser.photoURL || undefined,
       joinedDate: new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
-      company: 'Personal / Bisnis'
+      company: extraData?.company || 'Personal / Bisnis'
     };
   }
 
-  localStorage.setItem('at_digital_user', JSON.stringify(appUser));
   return appUser;
 }
 
 /**
- * Sign In with real Google Account
+ * Sign In with official Firebase GoogleAuthProvider and signInWithPopup
  */
 export async function loginWithGoogle(): Promise<User> {
-  // First attempt Google Identity Services (GIS)
   try {
-    return await loginWithGoogleGIS();
-  } catch (gisError: any) {
-    console.warn('GIS login failed, trying Firebase popup fallback:', gisError);
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = await syncUserProfile(result.user);
-      return user;
-    } catch (fbError: any) {
-      console.error('Firebase Auth popup error:', fbError);
-      throw fbError;
-    }
+    const result = await signInWithPopup(auth, googleProvider);
+    const user = await syncUserProfile(result.user);
+    return user;
+  } catch (fbError: any) {
+    console.error('Firebase Google Sign-In error:', fbError);
+    throw fbError;
   }
 }
 
@@ -292,6 +177,12 @@ export async function registerWithEmail(name: string, email: string, pass: strin
   const result = await createUserWithEmailAndPassword(auth, email.trim(), pass);
   if (name.trim()) {
     await updateProfile(result.user, { displayName: name.trim() });
+  }
+  // Send email verification
+  try {
+    await sendEmailVerification(result.user);
+  } catch (verErr) {
+    console.warn('Email verification send warning:', verErr);
   }
   const user = await syncUserProfile(result.user, { company });
   return user;
@@ -322,7 +213,7 @@ export async function saveUserTransaction(userId: string, tx: Transaction, purch
     const userRef = doc(db, 'users', userId);
     await setDoc(userRef, {
       purchasedProductIds: purchasedIds,
-      updatedAt: new Date().toISOString()
+      updatedAt: serverTimestamp()
     }, { merge: true });
   } catch (err) {
     console.error('Failed to save transaction to Firestore:', err);

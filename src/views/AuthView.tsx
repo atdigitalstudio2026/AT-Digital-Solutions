@@ -85,8 +85,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
         return;
       }
     } catch (err: any) {
-      console.warn('Google popup restriction, opening direct sign-in dialog:', err);
-      setShowGoogleModal(true);
+      console.error('Google Sign-In error in AuthView:', err);
     } finally {
       setIsGoogleLoading(false);
     }

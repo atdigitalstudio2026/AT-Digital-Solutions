@@ -95,7 +95,7 @@ registerForm.addEventListener('submit', async (e) => {
     }, 800);
   } catch (error) {
     console.error('Register error:', error);
-    const friendlyMsg = getFriendlyErrorMessage(error.code) || error.message;
+    const friendlyMsg = getFriendlyErrorMessage(error.code || '', error.message || '');
     showError(friendlyMsg);
     setLoading(false);
   }
@@ -115,7 +115,7 @@ if (googleBtn) {
       }, 600);
     } catch (error) {
       console.error('Google register error:', error);
-      const friendlyMsg = getFriendlyErrorMessage(error.code) || error.message;
+      const friendlyMsg = getFriendlyErrorMessage(error.code || '', error.message || '');
       showError(friendlyMsg);
       setLoading(false);
     }

@@ -93,7 +93,7 @@ loginForm.addEventListener('submit', async (e) => {
     }, 600);
   } catch (error) {
     console.error('Login error:', error);
-    const friendlyMsg = getFriendlyErrorMessage(error.code) || error.message;
+    const friendlyMsg = getFriendlyErrorMessage(error.code || '', error.message || '');
     showError(friendlyMsg);
     setLoading(false);
   }
@@ -112,7 +112,7 @@ googleBtn.addEventListener('click', async () => {
     }, 600);
   } catch (error) {
     console.error('Google login error:', error);
-    const friendlyMsg = getFriendlyErrorMessage(error.code) || error.message;
+    const friendlyMsg = getFriendlyErrorMessage(error.code || '', error.message || '');
     showError(friendlyMsg);
     setLoading(false);
   }

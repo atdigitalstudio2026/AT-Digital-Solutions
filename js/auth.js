@@ -32,14 +32,30 @@ googleProvider.setCustomParameters({
 /**
  * Terjemahkan error code Firebase Authentication ke pesan bahasa Indonesia yang mudah dipahami
  */
-export function getFriendlyErrorMessage(errorCode) {
+export function getFriendlyErrorMessage(errorCode, rawMessage = '') {
+  const combined = (errorCode + ' ' + rawMessage).toLowerCase();
+
+  if (combined.includes('origin_mismatch') || combined.includes('origin mismatch') || combined.includes('redirect_uri_mismatch')) {
+    return 'Origin website belum terdaftar pada Google OAuth Client. Periksa Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs → Authorized JavaScript origins.';
+  }
+
   switch (errorCode) {
+    case 'auth/unauthorized-domain':
+      return 'Domain website ini belum diizinkan di Firebase Authentication. Periksa Firebase Console → Authentication → Settings → Authorized domains.';
+    case 'auth/operation-not-allowed':
+      return 'Metode login ini belum diaktifkan. Periksa Firebase Console → Authentication → Sign-in method → Aktifkan Google / Email.';
+    case 'auth/popup-closed-by-user':
+      return 'Jendela login Google ditutup sebelum proses autentikasi selesai.';
+    case 'auth/popup-blocked':
+      return 'Popup login diblokir oleh browser. Harap izinkan popup di browser Anda untuk melanjutkan login Google.';
+    case 'auth/cancelled-popup-request':
+      return 'Permintaan login Google dibatalkan karena ada proses login lain yang sedang berjalan.';
     case 'auth/invalid-credential':
     case 'auth/wrong-password':
     case 'auth/user-not-found':
       return 'Email atau kata sandi yang Anda masukkan salah.';
     case 'auth/email-already-in-use':
-      return 'Alamat email ini sudah terdaftar. Silakan masuk.';
+      return 'Alamat email ini sudah terdaftar. Silakan masuk dengan akun yang sudah ada.';
     case 'auth/weak-password':
       return 'Kata sandi terlalu lemah. Gunakan minimal 8 karakter dengan kombinasi huruf dan angka.';
     case 'auth/invalid-email':
@@ -48,18 +64,12 @@ export function getFriendlyErrorMessage(errorCode) {
       return 'Terlalu banyak percobaan gagal. Akses ditangguhkan sementara demi keamanan. Silakan coba lagi nanti.';
     case 'auth/user-disabled':
       return 'Akun ini telah dinonaktifkan oleh administrator.';
-    case 'auth/popup-closed-by-user':
-      return 'Jendela login Google ditutup sebelum proses selesai.';
-    case 'auth/popup-blocked':
-      return 'Popup login diblokir oleh browser. Izinkan popup untuk melanjutkan.';
     case 'auth/network-request-failed':
       return 'Koneksi jaringan terputus. Periksa koneksi internet Anda.';
-    case 'auth/unauthorized-domain':
-      return 'Domain aplikasi ini belum diotorisasi di Firebase Console (Authentication > Settings > Authorized domains).';
     case 'auth/requires-recent-login':
       return 'Operasi ini memerlukan login ulang untuk verifikasi keamanan.';
     default:
-      return 'Terjadi kesalahan sistem. Silakan coba lagi nanti.';
+      return rawMessage || 'Terjadi kesalahan pada proses autentikasi. Silakan coba lagi nanti.';
   }
 }
 
@@ -74,22 +84,24 @@ export async function syncUserToFirestore(user, additionalData = {}) {
   try {
     const userSnap = await getDoc(userRef);
     if (userSnap.exists()) {
-      // Update lastLoginAt dan field non-kritis
-      await setDoc(userRef, {
-        displayName: user.displayName || userSnap.data().displayName || additionalData.displayName || user.email?.split('@')[0],
-        email: user.email,
-        photoURL: user.photoURL || userSnap.data().photoURL || null,
+      const existingData = userSnap.data();
+      // JANGAN overwrite role secara sembarangan jika sudah ada
+      const updatedFields = {
+        email: user.email || existingData.email || "",
+        displayName: user.displayName || existingData.displayName || additionalData.displayName || (user.email ? user.email.split('@')[0] : ""),
+        photoURL: user.photoURL || existingData.photoURL || "",
         lastLoginAt: serverTimestamp(),
         updatedAt: serverTimestamp()
-      }, { merge: true });
-      return { id: user.uid, ...userSnap.data(), email: user.email, displayName: user.displayName || userSnap.data().displayName };
+      };
+      await setDoc(userRef, updatedFields, { merge: true });
+      return { id: user.uid, ...existingData, ...updatedFields };
     } else {
-      // Buat dokumen pengguna baru
+      // Buat dokumen pengguna baru jika belum ada
       const newUserProfile = {
         uid: user.uid,
-        displayName: user.displayName || additionalData.displayName || user.email?.split('@')[0] || 'Pengguna Baru',
-        email: user.email,
-        photoURL: user.photoURL || null,
+        email: user.email || "",
+        displayName: user.displayName || additionalData.displayName || (user.email ? user.email.split('@')[0] : ""),
+        photoURL: user.photoURL || "",
         role: "user",
         status: "active",
         createdAt: serverTimestamp(),
@@ -103,8 +115,8 @@ export async function syncUserToFirestore(user, additionalData = {}) {
     console.error('Gagal menyinkronkan data profil ke Firestore:', err);
     return {
       uid: user.uid,
-      displayName: user.displayName || user.email?.split('@')[0],
-      email: user.email
+      displayName: user.displayName || (user.email ? user.email.split('@')[0] : ""),
+      email: user.email || ""
     };
   }
 }

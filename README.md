@@ -44,30 +44,37 @@ Sistem autentikasi tingkat produksi (production-ready) yang dibangun menggunakan
 
 ---
 
-## 🛠️ LANGKAH YANG HARUS DILAKUKAN DI FIREBASE CONSOLE
+## 🛠️ PANDUAN KONFIGURASI FIREBASE & GOOGLE CLOUD OAUTH
 
-Untuk mengaktifkan seluruh fitur autentikasi di production, pastikan pengaturan berikut telah diaktifkan di [Firebase Console](https://console.firebase.google.com/):
+Untuk memastikan fitur **Google Sign-In** dan autentikasi berjalan tanpa error `origin_mismatch`:
 
-### 1. Aktifkan Sign-in Providers
-1. Buka **Firebase Console** > Pilih Project Anda (`gen-lang-client-0645438603` atau project kustom Anda).
-2. Masuk ke menu **Build > Authentication > Sign-in method**.
-3. **Email/Password**:
-   - Klik **Email/Password**.
-   - Aktifkan toggle **Enable** pada "Email/Password".
-   - Klik **Save**.
-4. **Google**:
-   - Klik **Google**.
-   - Aktifkan toggle **Enable**.
-   - Pilih "Project support email" (misalnya: email Anda).
-   - Klik **Save**.
+### 1. Checklist Firebase Console
+- [ ] **Google Provider Enabled**: Masuk ke **Authentication > Sign-in method > Google**, pastikan status **Enabled** dan email dukungan proyek telah dipilih.
+- [ ] **Email/Password Provider Enabled**: Masuk ke **Authentication > Sign-in method > Email/Password**, pastikan status **Enabled**.
+- [ ] **Authorized Domains Benar**: Masuk ke **Authentication > Settings > Authorized domains**, tambahkan seluruh origin domain berikut:
+  - `localhost`
+  - `ais-dev-nzkql5nbwjiuo2xqdmoqdu-871983252203.asia-southeast1.run.app`
+  - `ais-pre-nzkql5nbwjiuo2xqdmoqdu-871983252203.asia-southeast1.run.app`
+  - `gen-lang-client-0645438603.firebaseapp.com`
+  - Domain kustom Anda (misal: `app.atdigital.id`) jika sudah digunakan.
+- [ ] **authDomain Benar**: Nilai `authDomain` di file konfigurasi client harus berupa `gen-lang-client-0645438603.firebaseapp.com` (atau domain hosting Firebase Anda).
 
-### 2. Daftarkan Domain Terotorisasi (Authorized Domains)
-Agar login Google dan Firebase Auth tidak diblokir oleh browser:
-1. Di **Authentication**, buka tab **Settings** > **Authorized domains**.
-2. Klik **Add domain** dan tambahkan:
-   - Domain preview Cloud Run / hosting Anda (misalnya: `ais-dev-nzkql5nbwjiuo2xqdmoqdu-871983252203.asia-southeast1.run.app`)
-   - `localhost` (sudah ada secara default).
-   - Custom domain Anda jika sudah memiliki domain sendiri.
+---
+
+### 2. Checklist Google Cloud Console (Mengatasi Error `origin_mismatch`)
+Error `origin_mismatch` (Error 400) terjadi ketika origin URL browser pengakses belum didaftarkan di OAuth 2.0 Web Client.
+
+1. Buka [Google Cloud Console Credentials](https://console.cloud.google.com/apis/credentials) pada project `gen-lang-client-0645438603`.
+2. Pada bagian **OAuth 2.0 Client IDs**, buka Client bertipe **Web application** (Client ID: `579181577117-d4en2kpiq4kf0e3787454nl4vb3lq84l.apps.googleusercontent.com` atau client yang digunakan Firebase Auth).
+3. Di bagian **Authorized JavaScript origins**, tambahkan:
+   - `http://localhost:3000` (jika aplikasi dijalankan di port 3000)
+   - `http://localhost:5173` (jika aplikasi dijalankan via default Vite)
+   - `https://ais-dev-nzkql5nbwjiuo2xqdmoqdu-871983252203.asia-southeast1.run.app`
+   - `https://ais-pre-nzkql5nbwjiuo2xqdmoqdu-871983252203.asia-southeast1.run.app`
+   - `https://gen-lang-client-0645438603.firebaseapp.com`
+4. Di bagian **Authorized redirect URIs**, pastikan URI handler Firebase terdaftar:
+   - `https://gen-lang-client-0645438603.firebaseapp.com/__/auth/handler`
+5. Klik **Save**. (Catatan: Google Cloud membutuhkan waktu 1-5 menit untuk menyebarkan perubahan origin).
 
 ### 3. Deploy Firestore Security Rules
 Pastikan aturan berikut telah diterapkan pada menu **Build > Firestore Database > Rules**:
